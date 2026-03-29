@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8" />
+<title>Ultra Kompakt Wetter München</title>
+
+<style>
+  body {
+    margin: 0;
+    padding: 20px;
+    background: #eef3f8;
+    font-family: Arial, sans-serif;
+  }
+
+  .weather-banner {
+    width: 20cm;
+    height: 3.2cm;
+    display: grid;
+    grid-template-rows: repeat(5, 1fr);
+    gap: 3px;
+    padding: 6px;
+    border-radius: 10px;
+    background: linear-gradient(135deg, #1976d2, #42a5f5);
+    color: white;
+    box-shadow: 0 6px 18px rgba(0,0,0,0.15);
+    overflow: hidden;
+  }
+
+  .day-row {
+    display: grid;
+    grid-template-columns: 40px 22px 55px 40px 1fr;
+    align-items: center;
+    gap: 4px;
+    background: rgba(255,255,255,0.12);
+    border-radius: 6px;
+    padding: 2px 4px;
+    font-size: 10px;
+    line-height: 1;
+  }
+
+  .day-name {
+    font-weight: 700;
+  }
+
+  .icon {
+    text-align: center;
+  }
+
+  .temp {
+    font-weight: 700;
+  }
+
+  .rain {
+    font-size: 9px;
+    opacity: 0.9;
+  }
+
+  .hours {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 2px;
+  }
+
+  .hour {
+    text-align: center;
+    font-size: 9px;
+    background: rgba(255,255,255,0.15);
+    border-radius: 4px;
+    padding: 1px;
+  }
+
+  .loading, .error {
+    width: 20cm;
+    height: 3.2cm;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: white;
+    border-radius: 10px;
+    font-size: 12px;
+  }
+
+  @media (max-width: 900px) {
+    .weather-banner {
+      width: 100%;
+      height: auto;
+    }
+  }
+</style>
+</head>
+
+<body>
+<div id="app" class="loading">Lade Wetter...</div>
+
+<script>
+const app = document.getElementById("app");
+
+const WEATHER_MAP = {
+  0:"☀️",1:"🌤️",2:"⛅",3:"☁️",
+  45:"🌫️",48:"🌫️",
+  51:"🌦️",53:"🌦️",55:"🌧️",
+  61:"🌦️",63:"🌧️",65:"🌧️",
+  71:"🌨️",73:"🌨️",75:"❄️",
+  80:"🌦️",81:"🌧️",82:"⛈️",
+  95:"⛈️",96:"⛈️",99:"⛈️"
+};
+
+function w(code){ return WEATHER_MAP[code] || "🌡️"; }
+
+function day(d){
+  return new Intl.DateTimeFormat("de-DE",{weekday:"short"})
+    .format(new Date(d)).replace(".","");
+}
+
+function hoursForDay(hourly, date){
+  const wanted=[9,12,15,18];
+  const out=[];
+
+  for(let i=0;i<hourly.time.length;i++){
+    if(!hourly.time[i].startsWith(date)) continue;
+    const h=new Date(hourly.time[i]).getHours();
+    if(!wanted.includes(h)) continue;
+
+    out.push({
+      h,
+      t:Math.round(hourly.temperature_2m[i]),
+      c:w(hourly.weather_code[i])
+    });
+  }
+  return out.sort((a,b)=>a.h-b.h);
+}
+
+async function load(){
+  try{
+    const res=await fetch(
+      "https://api.open-meteo.com/v1/forecast"+
+      "?latitude=48.137&longitude=11.575"+
+      "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max"+
+      "&hourly=temperature_2m,weather_code"+
+      "&forecast_days=5"+
+      "&timezone=Europe%2FBerlin"
+    );
+
+    const data=await res.json();
+    const d=data.daily;
+    const h=data.hourly;
+
+    app.className="weather-banner";
+
+    app.innerHTML = d.time.map((date,i)=>{
+      const hrs=hoursForDay(h,date);
+
+      return `
+        <div class="day-row">
+          <div class="day-name">${day(date)}</div>
+          <div class="icon">${w(d.weather_code[i])}</div>
+          <div class="temp">${Math.round(d.temperature_2m_max[i])}/${Math.round(d.temperature_2m_min[i])}°</div>
+          <div class="rain">${Math.round(d.precipitation_probability_max[i]||0)}%</div>
+
+          <div class="hours">
+            ${hrs.map(x=>`
+              <div class="hour">
+                ${x.h}h ${x.c} ${x.t}°
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      `;
+    }).join("");
+
+  }catch(e){
+    app.className="error";
+    app.textContent="Fehler beim Laden";
+  }
+}
+
+load();
+</script>
+</body>
+</html>
