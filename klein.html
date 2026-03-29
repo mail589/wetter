@@ -2,9 +2,14 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Wetter München Kompakt</title>
 
 <style>
+  * {
+    box-sizing: border-box;
+  }
+
   body {
     margin: 0;
     padding: 20px;
@@ -14,7 +19,7 @@
 
   .weather-banner {
     width: 31.5cm;
-    height: 6.2cm; /* +50% Höhe */
+    height: 6.2cm;
     display: grid;
     grid-template-rows: auto repeat(6, 1fr);
     gap: 5px;
@@ -23,12 +28,13 @@
     background: linear-gradient(135deg, #1976d2, #42a5f5);
     color: white;
     box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    overflow: hidden;
   }
 
   .header-row,
   .day-row {
     display: grid;
-    grid-template-columns: 70px 40px 60px 50px 90px 1fr;
+    grid-template-columns: 70px 40px 60px 50px 90px repeat(4, 1fr);
     align-items: center;
     gap: 6px;
     border-radius: 8px;
@@ -36,10 +42,21 @@
   }
 
   .header-row {
-    background: rgba(255,255,255,0.2);
+    background: rgba(255,255,255,0.20);
     font-size: 11px;
     font-weight: 700;
     text-transform: uppercase;
+    letter-spacing: 0.02em;
+  }
+
+  .header-row > div {
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  .header-row > div:first-child,
+  .day-name {
+    text-align: left;
   }
 
   .day-row {
@@ -59,24 +76,24 @@
 
   .temp {
     font-size: 11px;
-    opacity: 0.8;
+    opacity: 0.78;
+    text-align: center;
+    white-space: nowrap;
   }
 
   .rain {
     font-size: 11px;
     opacity: 0.85;
+    text-align: center;
+    white-space: nowrap;
   }
 
   .sun {
     font-size: 16px;
     font-weight: 800;
     color: #fff3a6;
-  }
-
-  .hours {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 6px;
+    text-align: center;
+    white-space: nowrap;
   }
 
   .hour {
@@ -87,21 +104,21 @@
     border-radius: 6px;
     padding: 4px 6px;
     font-size: 11px;
-  }
-
-  .hour-label {
-    font-weight: 700;
+    min-width: 0;
+    white-space: nowrap;
   }
 
   .hour-icon {
     font-size: 14px;
+    line-height: 1;
   }
 
   .hour-temp {
     font-weight: 600;
   }
 
-  .loading, .error {
+  .loading,
+  .error {
     width: 31.5cm;
     height: 6.2cm;
     display: flex;
@@ -111,6 +128,7 @@
     border-radius: 12px;
     font-size: 14px;
     color: #234;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
   }
 
   @media (max-width: 1200px) {
@@ -119,118 +137,159 @@
     .error {
       width: 100%;
       height: auto;
+      min-height: 6.2cm;
     }
   }
 </style>
 </head>
 
 <body>
-<div id="app" class="loading">Lade Wetter...</div>
+  <div id="app" class="loading">Lade Wetter...</div>
 
-<script>
-const app = document.getElementById("app");
+  <script>
+    const app = document.getElementById("app");
 
-const WEATHER_MAP = {
-  0:"☀️",1:"🌤️",2:"⛅",3:"☁️",
-  45:"🌫️",48:"🌫️",
-  51:"🌦️",53:"🌦️",55:"🌧️",
-  61:"🌦️",63:"🌧️",65:"🌧️",
-  71:"🌨️",73:"🌨️",75:"❄️",
-  80:"🌦️",81:"🌧️",82:"⛈️",
-  95:"⛈️"
-};
+    const WEATHER_MAP = {
+      0: "☀️",
+      1: "🌤️",
+      2: "⛅",
+      3: "☁️",
+      45: "🌫️",
+      48: "🌫️",
+      51: "🌦️",
+      53: "🌦️",
+      55: "🌧️",
+      61: "🌦️",
+      63: "🌧️",
+      65: "🌧️",
+      71: "🌨️",
+      73: "🌨️",
+      75: "❄️",
+      77: "❄️",
+      80: "🌦️",
+      81: "🌧️",
+      82: "⛈️",
+      85: "🌨️",
+      86: "❄️",
+      95: "⛈️",
+      96: "⛈️",
+      99: "⛈️"
+    };
 
-function w(code){ return WEATHER_MAP[code] || "🌡️"; }
-
-function day(d){
-  return new Intl.DateTimeFormat("de-DE",{weekday:"short"})
-    .format(new Date(d)).replace(".","");
-}
-
-function formatSunHours(sec){
-  return ((sec||0)/3600).toFixed(1).replace(".",",")+"h";
-}
-
-function bg(sec){
-  const r=Math.min(1,(sec||0)/10800);
-  return `rgba(255,255,255,${0.35 + r*0.4})`;
-}
-
-function hoursForDay(hourly,date){
-  const slots=[
-    {h:9,l:"Vorm."},
-    {h:12,l:"Mittag"},
-    {h:15,l:"Nachm."},
-    {h:18,l:"Abend"}
-  ];
-
-  const out=[];
-  for(const s of slots){
-    for(let i=0;i<hourly.time.length;i++){
-      if(!hourly.time[i].startsWith(date)) continue;
-      if(new Date(hourly.time[i]).getHours()!==s.h) continue;
-
-      out.push({
-        l:s.l,
-        t:Math.round(hourly.temperature_2m[i]),
-        c:w(hourly.weather_code[i]),
-        s:hourly.sunshine_duration[i]||0
-      });
-      break;
+    function weatherIcon(code) {
+      return WEATHER_MAP[code] || "🌡️";
     }
-  }
-  return out;
-}
 
-async function load(){
-  const res=await fetch(
-    "https://api.open-meteo.com/v1/forecast"+
-    "?latitude=48.137&longitude=11.575"+
-    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunshine_duration"+
-    "&hourly=temperature_2m,weather_code,sunshine_duration"+
-    "&forecast_days=6&timezone=Europe%2FBerlin"
-  );
+    function dayName(dateString) {
+      return new Intl.DateTimeFormat("de-DE", { weekday: "short" })
+        .format(new Date(dateString))
+        .replace(".", "");
+    }
 
-  const data=await res.json();
-  const d=data.daily;
-  const h=data.hourly;
+    function formatSunHours(seconds) {
+      return ((seconds || 0) / 3600).toFixed(1).replace(".", ",") + "h";
+    }
 
-  app.className="weather-banner";
+    function hourBackground(seconds) {
+      const ratio = Math.max(0, Math.min(1, (seconds || 0) / 10800));
+      const alpha = 0.22 + ratio * 0.38;
+      return `rgba(255,255,255,${alpha})`;
+    }
 
-  app.innerHTML = `
-    <div class="header-row">
-      <div>Tag</div><div>Wetter</div><div>Temp</div>
-      <div>Regen</div><div>Sonne</div>
-      <div>Vormittag | Mittag | Nachmittag | Abend</div>
-    </div>
+    function getSlotsForDay(hourly, date) {
+      const slots = [
+        { hour: 9,  label: "Vormittag" },
+        { hour: 12, label: "Mittag" },
+        { hour: 15, label: "Nachmittag" },
+        { hour: 18, label: "Abend" }
+      ];
 
-    ${d.time.map((date,i)=>{
-      const hrs=hoursForDay(h,date);
+      return slots.map(slot => {
+        for (let i = 0; i < hourly.time.length; i++) {
+          if (!hourly.time[i].startsWith(date)) continue;
+          if (new Date(hourly.time[i]).getHours() !== slot.hour) continue;
 
-      return `
-        <div class="day-row">
-          <div class="day-name">${day(date)}</div>
-          <div class="icon">${w(d.weather_code[i])}</div>
-          <div class="temp">${Math.round(d.temperature_2m_max[i])}/${Math.round(d.temperature_2m_min[i])}°</div>
-          <div class="rain">${Math.round(d.precipitation_probability_max[i]||0)}%</div>
-          <div class="sun">☀ ${formatSunHours(d.sunshine_duration[i])}</div>
+          return {
+            label: slot.label,
+            temp: Math.round(hourly.temperature_2m[i]),
+            icon: weatherIcon(hourly.weather_code[i]),
+            sunshine: hourly.sunshine_duration[i] || 0
+          };
+        }
 
-          <div class="hours">
-            ${hrs.map(x=>`
-              <div class="hour" style="background:${bg(x.s)}">
-                <span class="hour-label">${x.l}</span>
-                <span class="hour-icon">${x.c}</span>
-                <span class="hour-temp">${x.t}°</span>
-              </div>
-            `).join("")}
+        return {
+          label: slot.label,
+          temp: "-",
+          icon: "—",
+          sunshine: 0
+        };
+      });
+    }
+
+    async function loadWeather() {
+      try {
+        const response = await fetch(
+          "https://api.open-meteo.com/v1/forecast" +
+          "?latitude=48.137&longitude=11.575" +
+          "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunshine_duration" +
+          "&hourly=temperature_2m,weather_code,sunshine_duration" +
+          "&forecast_days=6" +
+          "&timezone=Europe%2FBerlin"
+        );
+
+        if (!response.ok) {
+          throw new Error("API-Fehler");
+        }
+
+        const data = await response.json();
+        const daily = data.daily;
+        const hourly = data.hourly;
+
+        const headerHtml = `
+          <div class="header-row">
+            <div>Tag</div>
+            <div>Wetter</div>
+            <div>Temp</div>
+            <div>Regen</div>
+            <div>Sonne</div>
+            <div>Vormittag</div>
+            <div>Mittag</div>
+            <div>Nachmittag</div>
+            <div>Abend</div>
           </div>
-        </div>
-      `;
-    }).join("")}
-  `;
-}
+        `;
 
-load();
-</script>
+        const rowsHtml = daily.time.map((date, i) => {
+          const slots = getSlotsForDay(hourly, date);
+
+          return `
+            <div class="day-row">
+              <div class="day-name">${dayName(date)}</div>
+              <div class="icon">${weatherIcon(daily.weather_code[i])}</div>
+              <div class="temp">${Math.round(daily.temperature_2m_max[i])}/${Math.round(daily.temperature_2m_min[i])}°</div>
+              <div class="rain">${Math.round(daily.precipitation_probability_max[i] || 0)}%</div>
+              <div class="sun">☀ ${formatSunHours(daily.sunshine_duration[i])}</div>
+
+              ${slots.map(slot => `
+                <div class="hour" style="background:${hourBackground(slot.sunshine)}">
+                  <span class="hour-icon">${slot.icon}</span>
+                  <span class="hour-temp">${slot.temp}°</span>
+                </div>
+              `).join("")}
+            </div>
+          `;
+        }).join("");
+
+        app.className = "weather-banner";
+        app.innerHTML = headerHtml + rowsHtml;
+      } catch (error) {
+        app.className = "error";
+        app.textContent = "Fehler beim Laden";
+        console.error(error);
+      }
+    }
+
+    loadWeather();
+  </script>
 </body>
 </html>
