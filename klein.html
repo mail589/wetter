@@ -13,10 +13,10 @@
   }
 
   .weather-banner {
-    width: 31.5cm; /* 28.6 cm + ca. 10% */
-    height: 3.7cm;
+    width: 31.5cm;
+    height: 4.15cm;
     display: grid;
-    grid-template-rows: repeat(6, 1fr);
+    grid-template-rows: auto repeat(6, 1fr);
     gap: 3px;
     padding: 6px;
     border-radius: 10px;
@@ -26,15 +26,37 @@
     overflow: hidden;
   }
 
+  .header-row,
   .day-row {
     display: grid;
-    grid-template-columns: 42px 26px 48px 36px 44px 1fr;
+    grid-template-columns: 52px 28px 42px 36px 62px 1fr;
     align-items: center;
     gap: 4px;
-    background: rgba(255,255,255,0.12);
     border-radius: 6px;
     padding: 2px 4px;
     font-size: 10px;
+  }
+
+  .header-row {
+    background: rgba(255,255,255,0.18);
+    font-size: 8px;
+    font-weight: 700;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+  }
+
+  .header-row .hours-head {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 4px;
+  }
+
+  .header-slot {
+    text-align: center;
+  }
+
+  .day-row {
+    background: rgba(255,255,255,0.12);
   }
 
   .day-name {
@@ -42,24 +64,26 @@
   }
 
   .icon {
-    font-size: 14px;
+    font-size: 13px;
     text-align: center;
   }
 
   .temp {
-    font-size: 9px;
-    opacity: 0.88;
+    font-size: 8px;
+    opacity: 0.72;
+    white-space: nowrap;
   }
 
   .rain {
-    font-size: 9px;
-    opacity: 0.82;
+    font-size: 8px;
+    opacity: 0.78;
+    white-space: nowrap;
   }
 
   .sun {
-    font-size: 9px;
+    font-size: 11px;
     font-weight: 700;
-    color: #fff7c2;
+    color: #fff3a6;
     white-space: nowrap;
   }
 
@@ -73,27 +97,34 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 3px;
-    background: rgba(255,255,255,0.15);
+    gap: 4px;
     border-radius: 4px;
-    padding: 2px 3px;
-    font-size: 9px;
+    padding: 2px 4px;
+    min-width: 0;
     white-space: nowrap;
+    transition: background 0.2s ease;
+  }
+
+  .hour-label {
+    font-size: 8px;
+    font-weight: 700;
+    opacity: 0.96;
   }
 
   .hour-icon {
-    font-size: 12px;
+    font-size: 11px;
     line-height: 1;
   }
 
   .hour-temp {
-    font-size: 9px;
+    font-size: 8px;
     font-weight: 600;
+    opacity: 0.92;
   }
 
   .loading, .error {
     width: 31.5cm;
-    height: 3.7cm;
+    height: 4.15cm;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -109,7 +140,7 @@
     .error {
       width: 100%;
       height: auto;
-      min-height: 3.7cm;
+      min-height: 4.15cm;
     }
   }
 </style>
@@ -142,28 +173,54 @@ function day(d) {
     .replace(".", "");
 }
 
-function hoursForDay(hourly, date) {
-  const wanted = [9, 12, 15, 18];
-  const out = [];
-
-  for (let i = 0; i < hourly.time.length; i++) {
-    if (!hourly.time[i].startsWith(date)) continue;
-    const h = new Date(hourly.time[i]).getHours();
-    if (!wanted.includes(h)) continue;
-
-    out.push({
-      h,
-      t: Math.round(hourly.temperature_2m[i]),
-      c: w(hourly.weather_code[i])
-    });
-  }
-
-  return out.sort((a, b) => a.h - b.h);
-}
-
 function formatSunHours(seconds) {
   const hours = (seconds || 0) / 3600;
   return hours.toFixed(1).replace(".", ",") + "h";
+}
+
+function getHourBlockBackground(seconds) {
+  const ratio = Math.max(0, Math.min(1, (seconds || 0) / 10800)); // 3h = 10800s
+  const alpha = 0.34 + (ratio * 0.34); // wenig Sonne = dunkler
+  return `rgba(255, 255, 255, ${alpha})`;
+}
+
+function getHourBlockTextColor(seconds) {
+  const ratio = Math.max(0, Math.min(1, (seconds || 0) / 10800));
+  return ratio < 0.22 ? "rgba(255,255,255,0.92)" : "#ffffff";
+}
+
+function hoursForDay(hourly, date) {
+  const slots = [
+    { hour: 9,  label: "Vormittag" },
+    { hour: 12, label: "Mittag" },
+    { hour: 15, label: "Nachmittag" },
+    { hour: 18, label: "Abend" }
+  ];
+
+  const out = [];
+
+  for (const slot of slots) {
+    let found = null;
+
+    for (let i = 0; i < hourly.time.length; i++) {
+      if (!hourly.time[i].startsWith(date)) continue;
+
+      const h = new Date(hourly.time[i]).getHours();
+      if (h !== slot.hour) continue;
+
+      found = {
+        label: slot.label,
+        temp: Math.round(hourly.temperature_2m[i]),
+        icon: w(hourly.weather_code[i]),
+        sunshine: hourly.sunshine_duration[i] || 0
+      };
+      break;
+    }
+
+    if (found) out.push(found);
+  }
+
+  return out;
 }
 
 async function load() {
@@ -172,7 +229,7 @@ async function load() {
       "https://api.open-meteo.com/v1/forecast" +
       "?latitude=48.137&longitude=11.575" +
       "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunshine_duration" +
-      "&hourly=temperature_2m,weather_code" +
+      "&hourly=temperature_2m,weather_code,sunshine_duration" +
       "&forecast_days=6" +
       "&timezone=Europe%2FBerlin"
     );
@@ -185,7 +242,23 @@ async function load() {
 
     app.className = "weather-banner";
 
-    app.innerHTML = d.time.map((date, i) => {
+    const headerHtml = `
+      <div class="header-row">
+        <div>Tag</div>
+        <div>Wetter</div>
+        <div>Temp.</div>
+        <div>Regen</div>
+        <div>Sonne</div>
+        <div class="hours-head">
+          <div class="header-slot">Vormittag</div>
+          <div class="header-slot">Mittag</div>
+          <div class="header-slot">Nachmittag</div>
+          <div class="header-slot">Abend</div>
+        </div>
+      </div>
+    `;
+
+    const rowsHtml = d.time.map((date, i) => {
       const hrs = hoursForDay(h, date);
 
       return `
@@ -198,15 +271,21 @@ async function load() {
 
           <div class="hours">
             ${hrs.map(x => `
-              <div class="hour">
-                <span class="hour-icon">${x.c}</span>
-                <span class="hour-temp">${x.t}°</span>
+              <div 
+                class="hour"
+                style="background:${getHourBlockBackground(x.sunshine)};color:${getHourBlockTextColor(x.sunshine)};"
+              >
+                <span class="hour-label">${x.label}</span>
+                <span class="hour-icon">${x.icon}</span>
+                <span class="hour-temp">${x.temp}°</span>
               </div>
             `).join("")}
           </div>
         </div>
       `;
     }).join("");
+
+    app.innerHTML = headerHtml + rowsHtml;
 
   } catch (e) {
     app.className = "error";
