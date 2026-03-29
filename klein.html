@@ -54,9 +54,10 @@
     white-space: nowrap;
   }
 
-  .header-row > div:first-child,
-  .day-name {
+  .header-row > div:first-child {
     text-align: left;
+    font-size: 12px;
+    font-weight: 800;
   }
 
   .day-row {
@@ -67,6 +68,7 @@
   .day-name {
     font-weight: 700;
     font-size: 14px;
+    text-align: left;
   }
 
   .icon {
@@ -110,7 +112,6 @@
 
   .hour-icon {
     font-size: 14px;
-    line-height: 1;
   }
 
   .hour-temp {
@@ -128,7 +129,6 @@
     border-radius: 12px;
     font-size: 14px;
     color: #234;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.08);
   }
 
   @media (max-width: 1200px) {
@@ -137,7 +137,6 @@
     .error {
       width: 100%;
       height: auto;
-      min-height: 6.2cm;
     }
   }
 </style>
@@ -150,146 +149,103 @@
     const app = document.getElementById("app");
 
     const WEATHER_MAP = {
-      0: "☀️",
-      1: "🌤️",
-      2: "⛅",
-      3: "☁️",
-      45: "🌫️",
-      48: "🌫️",
-      51: "🌦️",
-      53: "🌦️",
-      55: "🌧️",
-      61: "🌦️",
-      63: "🌧️",
-      65: "🌧️",
-      71: "🌨️",
-      73: "🌨️",
-      75: "❄️",
-      77: "❄️",
-      80: "🌦️",
-      81: "🌧️",
-      82: "⛈️",
-      85: "🌨️",
-      86: "❄️",
-      95: "⛈️",
-      96: "⛈️",
-      99: "⛈️"
+      0:"☀️",1:"🌤️",2:"⛅",3:"☁️",
+      45:"🌫️",48:"🌫️",
+      51:"🌦️",53:"🌦️",55:"🌧️",
+      61:"🌦️",63:"🌧️",65:"🌧️",
+      71:"🌨️",73:"🌨️",75:"❄️",
+      77:"❄️",80:"🌦️",81:"🌧️",82:"⛈️",
+      85:"🌨️",86:"❄️",
+      95:"⛈️",96:"⛈️",99:"⛈️"
     };
 
-    function weatherIcon(code) {
+    function weatherIcon(code){
       return WEATHER_MAP[code] || "🌡️";
     }
 
-    function dayName(dateString) {
-      return new Intl.DateTimeFormat("de-DE", { weekday: "short" })
-        .format(new Date(dateString))
-        .replace(".", "");
+    function dayName(date){
+      return new Intl.DateTimeFormat("de-DE",{weekday:"short"})
+        .format(new Date(date)).replace(".","");
     }
 
-    function formatSunHours(seconds) {
-      return ((seconds || 0) / 3600).toFixed(1).replace(".", ",") + "h";
+    function sunHours(sec){
+      return ((sec||0)/3600).toFixed(1).replace(".",",")+"h";
     }
 
-    function hourBackground(seconds) {
-      const ratio = Math.max(0, Math.min(1, (seconds || 0) / 10800));
-      const alpha = 0.22 + ratio * 0.38;
-      return `rgba(255,255,255,${alpha})`;
+    function bg(sec){
+      const r=Math.min(1,(sec||0)/10800);
+      return `rgba(255,255,255,${0.22 + r*0.38})`;
     }
 
-    function getSlotsForDay(hourly, date) {
-      const slots = [
-        { hour: 9,  label: "Vormittag" },
-        { hour: 12, label: "Mittag" },
-        { hour: 15, label: "Nachmittag" },
-        { hour: 18, label: "Abend" }
-      ];
-
-      return slots.map(slot => {
-        for (let i = 0; i < hourly.time.length; i++) {
-          if (!hourly.time[i].startsWith(date)) continue;
-          if (new Date(hourly.time[i]).getHours() !== slot.hour) continue;
+    function slots(hourly,date){
+      const s=[9,12,15,18];
+      return s.map(h=>{
+        for(let i=0;i<hourly.time.length;i++){
+          if(!hourly.time[i].startsWith(date)) continue;
+          if(new Date(hourly.time[i]).getHours()!==h) continue;
 
           return {
-            label: slot.label,
-            temp: Math.round(hourly.temperature_2m[i]),
-            icon: weatherIcon(hourly.weather_code[i]),
-            sunshine: hourly.sunshine_duration[i] || 0
+            t:Math.round(hourly.temperature_2m[i]),
+            c:weatherIcon(hourly.weather_code[i]),
+            s:hourly.sunshine_duration[i]||0
           };
         }
-
-        return {
-          label: slot.label,
-          temp: "-",
-          icon: "—",
-          sunshine: 0
-        };
+        return {t:"-",c:"—",s:0};
       });
     }
 
-    async function loadWeather() {
-      try {
-        const response = await fetch(
-          "https://api.open-meteo.com/v1/forecast" +
-          "?latitude=48.137&longitude=11.575" +
-          "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunshine_duration" +
-          "&hourly=temperature_2m,weather_code,sunshine_duration" +
-          "&forecast_days=6" +
-          "&timezone=Europe%2FBerlin"
-        );
+    async function load(){
+      const res=await fetch(
+        "https://api.open-meteo.com/v1/forecast"+
+        "?latitude=48.137&longitude=11.575"+
+        "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunshine_duration"+
+        "&hourly=temperature_2m,weather_code,sunshine_duration"+
+        "&forecast_days=6&timezone=Europe%2FBerlin"
+      );
 
-        if (!response.ok) {
-          throw new Error("API-Fehler");
-        }
+      const data=await res.json();
+      const d=data.daily;
+      const h=data.hourly;
 
-        const data = await response.json();
-        const daily = data.daily;
-        const hourly = data.hourly;
+      app.className="weather-banner";
 
-        const headerHtml = `
-          <div class="header-row">
-            <div>Tag</div>
-            <div>Wetter</div>
-            <div>Temp</div>
-            <div>Regen</div>
-            <div>Sonne</div>
-            <div>Vormittag</div>
-            <div>Mittag</div>
-            <div>Nachmittag</div>
-            <div>Abend</div>
-          </div>
-        `;
+      app.innerHTML = `
+        <div class="header-row">
+          <div>München</div>
+          <div>Wetter</div>
+          <div>Temp</div>
+          <div>Regen</div>
+          <div>Sonne</div>
+          <div>Vormittag</div>
+          <div>Mittag</div>
+          <div>Nachmittag</div>
+          <div>Abend</div>
+        </div>
 
-        const rowsHtml = daily.time.map((date, i) => {
-          const slots = getSlotsForDay(hourly, date);
+        ${d.time.map((date,i)=>{
+          const sl=slots(h,date);
 
           return `
             <div class="day-row">
               <div class="day-name">${dayName(date)}</div>
-              <div class="icon">${weatherIcon(daily.weather_code[i])}</div>
-              <div class="temp">${Math.round(daily.temperature_2m_max[i])}/${Math.round(daily.temperature_2m_min[i])}°</div>
-              <div class="rain">${Math.round(daily.precipitation_probability_max[i] || 0)}%</div>
-              <div class="sun">☀ ${formatSunHours(daily.sunshine_duration[i])}</div>
+              <div class="icon">${weatherIcon(d.weather_code[i])}</div>
+              <div class="temp">${Math.round(d.temperature_2m_max[i])}/${Math.round(d.temperature_2m_min[i])}°</div>
+              <div class="rain">${Math.round(d.precipitation_probability_max[i]||0)}%</div>
+              <div class="sun">☀ ${sunHours(d.sunshine_duration[i])}</div>
 
-              ${slots.map(slot => `
-                <div class="hour" style="background:${hourBackground(slot.sunshine)}">
-                  <span class="hour-icon">${slot.icon}</span>
-                  <span class="hour-temp">${slot.temp}°</span>
+              ${sl.map(x=>`
+                <div class="hour" style="background:${bg(x.s)}">
+                  <span class="hour-icon">${x.c}</span>
+                  <span class="hour-temp">${x.t}°</span>
                 </div>
               `).join("")}
             </div>
           `;
-        }).join("");
-
-        app.className = "weather-banner";
-        app.innerHTML = headerHtml + rowsHtml;
-      } catch (error) {
-        app.className = "error";
-        app.textContent = "Fehler beim Laden";
-        console.error(error);
-      }
+        }).join("")}
+      `;
     }
 
-    loadWeather();
+    load();
   </script>
 </body>
 </html>
