@@ -14,123 +14,102 @@
 
   .weather-banner {
     width: 31.5cm;
-    height: 4.15cm;
+    height: 6.2cm; /* +50% Höhe */
     display: grid;
     grid-template-rows: auto repeat(6, 1fr);
-    gap: 3px;
-    padding: 6px;
-    border-radius: 10px;
+    gap: 5px;
+    padding: 10px;
+    border-radius: 12px;
     background: linear-gradient(135deg, #1976d2, #42a5f5);
     color: white;
-    box-shadow: 0 6px 18px rgba(0,0,0,0.15);
-    overflow: hidden;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.18);
   }
 
   .header-row,
   .day-row {
     display: grid;
-    grid-template-columns: 52px 28px 42px 36px 62px 1fr;
+    grid-template-columns: 70px 40px 60px 50px 90px 1fr;
     align-items: center;
-    gap: 4px;
-    border-radius: 6px;
-    padding: 2px 4px;
-    font-size: 10px;
+    gap: 6px;
+    border-radius: 8px;
+    padding: 4px 6px;
   }
 
   .header-row {
-    background: rgba(255,255,255,0.18);
-    font-size: 8px;
+    background: rgba(255,255,255,0.2);
+    font-size: 11px;
     font-weight: 700;
-    letter-spacing: 0.02em;
     text-transform: uppercase;
   }
 
-  .header-row .hours-head {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 4px;
-  }
-
-  .header-slot {
-    text-align: center;
-  }
-
   .day-row {
-    background: rgba(255,255,255,0.12);
+    background: rgba(255,255,255,0.14);
+    font-size: 12px;
   }
 
   .day-name {
     font-weight: 700;
+    font-size: 14px;
   }
 
   .icon {
-    font-size: 13px;
+    font-size: 20px;
     text-align: center;
   }
 
   .temp {
-    font-size: 8px;
-    opacity: 0.72;
-    white-space: nowrap;
+    font-size: 11px;
+    opacity: 0.8;
   }
 
   .rain {
-    font-size: 8px;
-    opacity: 0.78;
-    white-space: nowrap;
+    font-size: 11px;
+    opacity: 0.85;
   }
 
   .sun {
-    font-size: 11px;
-    font-weight: 700;
+    font-size: 16px;
+    font-weight: 800;
     color: #fff3a6;
-    white-space: nowrap;
   }
 
   .hours {
     display: grid;
     grid-template-columns: repeat(4, 1fr);
-    gap: 4px;
+    gap: 6px;
   }
 
   .hour {
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 4px;
-    border-radius: 4px;
-    padding: 2px 4px;
-    min-width: 0;
-    white-space: nowrap;
-    transition: background 0.2s ease;
+    gap: 6px;
+    border-radius: 6px;
+    padding: 4px 6px;
+    font-size: 11px;
   }
 
   .hour-label {
-    font-size: 8px;
     font-weight: 700;
-    opacity: 0.96;
   }
 
   .hour-icon {
-    font-size: 11px;
-    line-height: 1;
+    font-size: 14px;
   }
 
   .hour-temp {
-    font-size: 8px;
     font-weight: 600;
-    opacity: 0.92;
   }
 
   .loading, .error {
     width: 31.5cm;
-    height: 4.15cm;
+    height: 6.2cm;
     display: flex;
     align-items: center;
     justify-content: center;
     background: white;
-    border-radius: 10px;
-    font-size: 12px;
+    border-radius: 12px;
+    font-size: 14px;
     color: #234;
   }
 
@@ -140,7 +119,6 @@
     .error {
       width: 100%;
       height: auto;
-      min-height: 4.15cm;
     }
   }
 </style>
@@ -158,140 +136,98 @@ const WEATHER_MAP = {
   51:"🌦️",53:"🌦️",55:"🌧️",
   61:"🌦️",63:"🌧️",65:"🌧️",
   71:"🌨️",73:"🌨️",75:"❄️",
-  77:"❄️",80:"🌦️",81:"🌧️",82:"⛈️",
-  85:"🌨️",86:"❄️",
-  95:"⛈️",96:"⛈️",99:"⛈️"
+  80:"🌦️",81:"🌧️",82:"⛈️",
+  95:"⛈️"
 };
 
-function w(code) {
-  return WEATHER_MAP[code] || "🌡️";
+function w(code){ return WEATHER_MAP[code] || "🌡️"; }
+
+function day(d){
+  return new Intl.DateTimeFormat("de-DE",{weekday:"short"})
+    .format(new Date(d)).replace(".","");
 }
 
-function day(d) {
-  return new Intl.DateTimeFormat("de-DE", { weekday: "short" })
-    .format(new Date(d))
-    .replace(".", "");
+function formatSunHours(sec){
+  return ((sec||0)/3600).toFixed(1).replace(".",",")+"h";
 }
 
-function formatSunHours(seconds) {
-  const hours = (seconds || 0) / 3600;
-  return hours.toFixed(1).replace(".", ",") + "h";
+function bg(sec){
+  const r=Math.min(1,(sec||0)/10800);
+  return `rgba(255,255,255,${0.35 + r*0.4})`;
 }
 
-function getHourBlockBackground(seconds) {
-  const ratio = Math.max(0, Math.min(1, (seconds || 0) / 10800)); // 3h = 10800s
-  const alpha = 0.34 + (ratio * 0.34); // wenig Sonne = dunkler
-  return `rgba(255, 255, 255, ${alpha})`;
-}
-
-function getHourBlockTextColor(seconds) {
-  const ratio = Math.max(0, Math.min(1, (seconds || 0) / 10800));
-  return ratio < 0.22 ? "rgba(255,255,255,0.92)" : "#ffffff";
-}
-
-function hoursForDay(hourly, date) {
-  const slots = [
-    { hour: 9,  label: "Vormittag" },
-    { hour: 12, label: "Mittag" },
-    { hour: 15, label: "Nachmittag" },
-    { hour: 18, label: "Abend" }
+function hoursForDay(hourly,date){
+  const slots=[
+    {h:9,l:"Vorm."},
+    {h:12,l:"Mittag"},
+    {h:15,l:"Nachm."},
+    {h:18,l:"Abend"}
   ];
 
-  const out = [];
+  const out=[];
+  for(const s of slots){
+    for(let i=0;i<hourly.time.length;i++){
+      if(!hourly.time[i].startsWith(date)) continue;
+      if(new Date(hourly.time[i]).getHours()!==s.h) continue;
 
-  for (const slot of slots) {
-    let found = null;
-
-    for (let i = 0; i < hourly.time.length; i++) {
-      if (!hourly.time[i].startsWith(date)) continue;
-
-      const h = new Date(hourly.time[i]).getHours();
-      if (h !== slot.hour) continue;
-
-      found = {
-        label: slot.label,
-        temp: Math.round(hourly.temperature_2m[i]),
-        icon: w(hourly.weather_code[i]),
-        sunshine: hourly.sunshine_duration[i] || 0
-      };
+      out.push({
+        l:s.l,
+        t:Math.round(hourly.temperature_2m[i]),
+        c:w(hourly.weather_code[i]),
+        s:hourly.sunshine_duration[i]||0
+      });
       break;
     }
-
-    if (found) out.push(found);
   }
-
   return out;
 }
 
-async function load() {
-  try {
-    const res = await fetch(
-      "https://api.open-meteo.com/v1/forecast" +
-      "?latitude=48.137&longitude=11.575" +
-      "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunshine_duration" +
-      "&hourly=temperature_2m,weather_code,sunshine_duration" +
-      "&forecast_days=6" +
-      "&timezone=Europe%2FBerlin"
-    );
+async function load(){
+  const res=await fetch(
+    "https://api.open-meteo.com/v1/forecast"+
+    "?latitude=48.137&longitude=11.575"+
+    "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max,sunshine_duration"+
+    "&hourly=temperature_2m,weather_code,sunshine_duration"+
+    "&forecast_days=6&timezone=Europe%2FBerlin"
+  );
 
-    if (!res.ok) throw new Error("API-Fehler");
+  const data=await res.json();
+  const d=data.daily;
+  const h=data.hourly;
 
-    const data = await res.json();
-    const d = data.daily;
-    const h = data.hourly;
+  app.className="weather-banner";
 
-    app.className = "weather-banner";
+  app.innerHTML = `
+    <div class="header-row">
+      <div>Tag</div><div>Wetter</div><div>Temp</div>
+      <div>Regen</div><div>Sonne</div>
+      <div>Vormittag | Mittag | Nachmittag | Abend</div>
+    </div>
 
-    const headerHtml = `
-      <div class="header-row">
-        <div>Tag</div>
-        <div>Wetter</div>
-        <div>Temp.</div>
-        <div>Regen</div>
-        <div>Sonne</div>
-        <div class="hours-head">
-          <div class="header-slot">Vormittag</div>
-          <div class="header-slot">Mittag</div>
-          <div class="header-slot">Nachmittag</div>
-          <div class="header-slot">Abend</div>
-        </div>
-      </div>
-    `;
-
-    const rowsHtml = d.time.map((date, i) => {
-      const hrs = hoursForDay(h, date);
+    ${d.time.map((date,i)=>{
+      const hrs=hoursForDay(h,date);
 
       return `
         <div class="day-row">
           <div class="day-name">${day(date)}</div>
           <div class="icon">${w(d.weather_code[i])}</div>
           <div class="temp">${Math.round(d.temperature_2m_max[i])}/${Math.round(d.temperature_2m_min[i])}°</div>
-          <div class="rain">${Math.round(d.precipitation_probability_max[i] || 0)}%</div>
+          <div class="rain">${Math.round(d.precipitation_probability_max[i]||0)}%</div>
           <div class="sun">☀ ${formatSunHours(d.sunshine_duration[i])}</div>
 
           <div class="hours">
-            ${hrs.map(x => `
-              <div 
-                class="hour"
-                style="background:${getHourBlockBackground(x.sunshine)};color:${getHourBlockTextColor(x.sunshine)};"
-              >
-                <span class="hour-label">${x.label}</span>
-                <span class="hour-icon">${x.icon}</span>
-                <span class="hour-temp">${x.temp}°</span>
+            ${hrs.map(x=>`
+              <div class="hour" style="background:${bg(x.s)}">
+                <span class="hour-label">${x.l}</span>
+                <span class="hour-icon">${x.c}</span>
+                <span class="hour-temp">${x.t}°</span>
               </div>
             `).join("")}
           </div>
         </div>
       `;
-    }).join("");
-
-    app.innerHTML = headerHtml + rowsHtml;
-
-  } catch (e) {
-    app.className = "error";
-    app.textContent = "Fehler beim Laden";
-    console.error(e);
-  }
+    }).join("")}
+  `;
 }
 
 load();
